@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wawv"
+version = "0.1.0"
+description = "Who Answers, Who Votes: correcting survey bias in the 2024 U.S. election with raking, MRP, and machine learning"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Conall Noonan" }]
+dependencies = [
+    "duckdb>=1.1", "pandas>=2.2", "numpy>=1.26", "pyreadstat>=1.2",
+    "scipy>=1.13", "statsmodels>=0.14", "scikit-learn>=1.5", "xgboost>=2.1",
+    "bambi>=0.14", "arviz>=0.19", "h5netcdf>=1.3", "h5py>=3.11",
+    "matplotlib>=3.9", "joblib>=1.4",
+]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.40", "altair>=5.4"]
+notebooks = ["jupyter", "nbformat>=5.10"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E731", "B905"]  # zip(strict=) is noise for same-length columns
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/wawv/report.py" = ["E501"]  # long lines are Markdown template text

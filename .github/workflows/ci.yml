@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dashboard,dev]"
+      - name: Lint
+        run: ruff check src app tests
+      - name: Unit tests
+        run: make test
+      - name: End-to-end pipeline on synthetic data
+        run: |
+          python -m wawv.synth
+          WAWV_DATA_RAW=data/synthetic WAWV_DB=data/demo.duckdb make all DRAWS=200 CHAINS=2
+      - name: Upload demo report
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-report
+          path: reports/demo/

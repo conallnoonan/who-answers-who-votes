@@ -1,0 +1,21 @@
+# raw data and databases: large, and redistributing some sources isn't allowed
+data/**
+!data/raw/
+!data/raw/.gitkeep
+*.duckdb
+*.duckdb.wal
+
+# fitted models (re-created by `make all`)
+models/**
+!models/.gitkeep
+
+# reports/ IS committed: figures, tables and REPORT.md are the portfolio.
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/

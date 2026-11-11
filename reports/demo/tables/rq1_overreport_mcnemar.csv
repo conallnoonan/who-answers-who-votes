@@ -1,0 +1,2 @@
+n,self_report_rate,validated_rate,self_report_rate_wtd,validated_rate_wtd,overreporters,underreporters,mcnemar_chi2,p_value
+8000,0.873,0.743625,0.8696187550959342,0.7396151835943756,1035,0,1033.000966183575,1.20548159187218e-226
