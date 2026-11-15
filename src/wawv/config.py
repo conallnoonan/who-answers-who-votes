@@ -33,7 +33,7 @@ CES_COLS = [
     "cc24_401",   # post-election self-reported turnout
     "cc24_410",   # post-election presidential vote choice
     "ts_g2024",   # TargetSmart validated 2024 general-election vote
-    "presvote20post",  # recalled 2020 presidential vote (1 Biden, 2 Trump, 3-5 other, 6 didn't vote)
+    "presvote20post",  # recalled 2020 presidential vote (codes: see PV_* below)
 ]
 SELF_VOTED_CODE = 5     # cc24_401: "I definitely voted"
 DEM_CODE = 1            # cc24_410 code for the Democratic candidate

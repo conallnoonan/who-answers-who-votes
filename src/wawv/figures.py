@@ -101,8 +101,8 @@ def fig2_overreport_ame():
     ax.grid(axis="y", visible=False)
     ax.set_xlabel("Change in probability of claiming to have voted (pct. points)")
     ax.set_title("Who overreports?", pad=22)
-    subtitle(ax, "Average marginal effects with 95% CIs, among among respondents matched to the voter file with no " \
-    "2024 vote.")
+    subtitle(ax, "Average marginal effects with 95% CIs, among respondents matched "
+                 "to the voter file with no 2024 vote.")
     source_note(fig, SRC)
     fig.subplots_adjust(bottom=0.12)
     save(fig, F / "fig2_overreport_ame.png")
