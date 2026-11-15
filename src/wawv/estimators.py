@@ -1,18 +1,28 @@
-"""RQ4: five ways to estimate each state's 2024 Dem two-party share.
+"""RQ4: estimators of each state's 2024 Dem two-party share.
 
+Demographic adjustment only:
   raw        unweighted mean among self-reported voters
-  ces_wt     CES's own post-election weight
   raked_lv   raked to ACS adult-citizen margins x predicted turnout
-  mrp_lv     multilevel model (bambi/PyMC), poststratified with N x p(turnout)
   xgb_lv     XGBoost vote model, poststratified with N x p(turnout)
+  mrp_lv     multilevel model (bambi/PyMC), poststratified with N x p(turnout)
 
-    python -m wawv.estimators [--draws 1000] [--skip-mrp]
+Demographics + recalled 2020 vote (see pastvote.py):
+  raked_pv, xgb_pv, mrp_pv
+
+Turnout is calibrated so predicted voters match certified 2024 votes cast in each
+state. ces_wt (the CES's own weight) is not used: it is post-stratified on 2024
+presidential vote by state (CES 2024 Guide, p. 17), i.e. on the outcome itself.
+
+    python -m wawv.estimators [--draws 1000] [--chains 4] [--skip-mrp] [--pv-only]
 """
 import argparse
+import warnings
 
 import joblib
 import numpy as np
 import pandas as pd
+from scipy.optimize import brentq
+from scipy.special import expit, logit
 from xgboost import XGBClassifier
 
 from . import config
@@ -56,6 +66,26 @@ def poststratify(ps: pd.DataFrame, p_col: str, w_col: str = "w") -> pd.Series:
     return g._pw.sum() / g[w_col].sum()
 
 
+def state_turnout_targets() -> pd.Series:
+    """Certified 2024 total presidential votes cast, by state."""
+    t = query("""SELECT CAST(state_fips AS INTEGER) AS state_fips, MAX(totalvotes) AS votes
+                 FROM raw.mit_president_state WHERE year = 2024 GROUP BY 1""")
+    return t.set_index("state_fips").votes
+
+
+def logit_shift(ps, ces, targets) -> None:
+    """Shift each state's turnout log-odds so predicted voters = certified votes cast.
+    Keeps the model's relative turnout pattern; corrects only the level."""
+    for st, g in ps.groupby("state_fips"):
+        lp = logit(g.p_vote.clip(1e-6, 1 - 1e-6))
+        d = brentq(lambda d, n=g.n, lp=lp, t=targets[st]: (n * expit(lp + d)).sum() - t,
+                   -8, 8)
+        ps.loc[g.index, "p_vote"] = expit(lp + d)
+        m = ces.state_fips == st
+        ces.loc[m, "p_vote"] = expit(logit(ces.loc[m, "p_vote"].clip(1e-6, 1 - 1e-6)) + d)
+    print(f"  turnout calibrated: implied = {(ps.p_vote * ps.n).sum() / ps.n.sum():.3f}")
+
+
 def load_inputs():
     ces = query("""SELECT c.*, s.dem_2020_c FROM clean.ces c
                    JOIN mart.state_covs s USING (state_fips)
@@ -66,6 +96,7 @@ def load_inputs():
     turnout = joblib.load(config.MODEL_DIR / "turnout_ps.joblib")
     ces["p_vote"] = turnout.predict_proba(ces[PS])[:, 1]
     ps["p_vote"] = turnout.predict_proba(ps[PS])[:, 1]
+    logit_shift(ps, ces, state_turnout_targets())
     ps["w"] = ps.n * ps.p_vote          # expected voters in each cell
     return ces, ps, margins
 
@@ -140,16 +171,20 @@ def est_mrp_lv(ces, ps, draws=1000, chains=4, max_pred_draws=400, chunk_size=150
                .agg(dem="sum", trials="count").reset_index())
     cells[PS] = cells[PS].astype(str)
     model = bmb.Model(
-        "p(dem, trials) ~ dem_2020_c + (1|state_fips) + (1|age_grp) + (1|sex) "
+        "p(dem, trials) ~ dem_2020_c + sex + (1|state_fips) + (1|age_grp) "
         "+ (1|race) + (1|educ) + (1|race:educ) + (1|age_grp:educ)",
         cells, family="binomial")
-    idata = model.fit(draws=draws, tune=draws, chains=chains,
-                      target_accept=0.95, random_seed=config.SEED)
+        # mp_ctx="spawn": start sampler workers as fresh processes. The default "fork"
+    # copies a parent whose BLAS threads (Apple Accelerate, used by the scikit-learn
+    # models fitted just before) can't survive a fork, which crashes on macOS.
+    idata = model.fit(draws=draws, tune=draws, chains=chains, mp_ctx="spawn",
+                      target_accept=0.99, random_seed=config.SEED)
     save_mrp_diagnostics(idata)
 
     # Predict in chunks on a thinned posterior: (draws x cells) arrays for every
     # group term otherwise get large fast (4,000 draws x 30k cells ~ 1 GB each).
-    step = max(1, idata.posterior.sizes["chain"] * idata.posterior.sizes["draw"] // max_pred_draws)
+    step = max(1, idata.posterior.sizes["chain"] * idata.posterior.sizes["draw"]
+               // max_pred_draws)
     thin = idata.sel(draw=slice(None, None, step))
     new = ps.copy()
     new[PS] = new[PS].astype(str)
@@ -157,7 +192,10 @@ def est_mrp_lv(ces, ps, draws=1000, chains=4, max_pred_draws=400, chunk_size=150
     chunks = []
     for start in range(0, len(new), chunk_size):
         part = new.iloc[start:start + chunk_size]
-        pred = model.predict(thin, data=part, kind="response_params", inplace=False)
+        with warnings.catch_warnings():  # older bambi needs the flag; newer warns
+            warnings.simplefilter("ignore", FutureWarning)
+            pred = model.predict(thin, data=part, kind="response_params", inplace=False,
+                                 sample_new_groups=True)
         # the response-parameter array is the one with one value per new row
         var = [k for k, a in pred.posterior.data_vars.items()
                if a.ndim == 3 and a.shape[-1] == len(part)][-1]
@@ -178,28 +216,58 @@ def est_mrp_lv(ces, ps, draws=1000, chains=4, max_pred_draws=400, chunk_size=150
 
 
 # --------------------------------------------------------------------------
+def _as_frame(series_or_df, method: str) -> pd.DataFrame:
+    if isinstance(series_or_df, pd.Series):
+        series_or_df = series_or_df.rename("est").rename_axis("state_fips").to_frame()
+    return series_or_df.reset_index().assign(method=method)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--draws", type=int, default=1000)
     ap.add_argument("--chains", type=int, default=4)
-    ap.add_argument("--skip-mrp", action="store_true")
+    ap.add_argument("--skip-mrp", action="store_true",
+                    help="skip both MRP fits (fast check of everything else)")
+    ap.add_argument("--pv-only", action="store_true",
+                    help="(re)fit only the 2020-vote methods and add them to the "
+                         "existing estimates, keeping the other methods as they are")
     args = ap.parse_args()
+    out_path = config.TAB_DIR / "rq4_state_estimates.csv"
 
     ces, ps, margins = load_inputs()
-    ests = {
-        "raw": est_raw(ces),
-        "ces_wt": est_ces_weight(ces),
-        "raked_lv": est_raked_lv(ces, margins),
-        "xgb_lv": est_xgb_lv(ces, ps),
-    }
-    frames = [s.rename("est").rename_axis("state_fips").reset_index().assign(method=k)
-              for k, s in ests.items()]
+    frames = []
+
+    # ---- demographic-only methods ------------------------------------------
+    if args.pv_only:
+        old = pd.read_csv(out_path)
+        frames.append(old[~old.method.str.endswith("_pv")])
+    else:
+        frames += [_as_frame(est_raw(ces), "raw"),
+                   _as_frame(est_raked_lv(ces, margins), "raked_lv"),
+                   _as_frame(est_xgb_lv(ces, ps), "xgb_lv")]
+        if not args.skip_mrp:
+            frames.append(_as_frame(est_mrp_lv(ces, ps, draws=args.draws,
+                                               chains=args.chains), "mrp_lv"))
+
+    # ---- recalled-2020-vote methods ----------------------------------------
+    from .pastvote import (
+        build_pv_frame,
+        est_mrp_pv,
+        est_raked_pv,
+        est_xgb_pv,
+        pv_targets,
+        pv_turnout,
+    )
+    targets = pv_targets(ps)
+    frame, d_pv = pv_turnout(ces, build_pv_frame(ces, ps, targets))
+    frames += [_as_frame(est_raked_pv(d_pv, margins, targets), "raked_pv"),
+               _as_frame(est_xgb_pv(d_pv, frame), "xgb_pv")]
     if not args.skip_mrp:
-        mrp = est_mrp_lv(ces, ps, draws=args.draws, chains=args.chains)
-        frames.append(mrp.reset_index().assign(method="mrp_lv"))
+        frames.append(_as_frame(est_mrp_pv(d_pv, frame, draws=args.draws,
+                                           chains=args.chains), "mrp_pv"))
 
     out = pd.concat(frames, ignore_index=True)
-    out.to_csv(config.TAB_DIR / "rq4_state_estimates.csv", index=False)
+    out.to_csv(out_path, index=False)
     print(out.groupby("method").est.describe())
 
 

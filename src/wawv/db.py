@@ -20,6 +20,10 @@ def sql_params() -> dict:
         "SELF_VOTED_CODE": config.SELF_VOTED_CODE,
         "DEM_CODE": config.DEM_CODE,
         "REP_CODE": config.REP_CODE,
+        "PV_DEM_CODE": config.PV_DEM_CODE,
+        "PV_REP_CODE": config.PV_REP_CODE,
+        "PV_OTHER_CODES": ", ".join(map(str, config.PV_OTHER_CODES)),
+        "PV_NOVOTE_CODES": ", ".join(map(str, config.PV_NOVOTE_CODES)),
     }
 
 

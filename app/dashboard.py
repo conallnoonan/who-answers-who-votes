@@ -45,9 +45,9 @@ if config.IS_DEMO:
 # ---- headline numbers -------------------------------------------------------
 best = acc.sort_values("rmse").iloc[0]
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Self-reported turnout", f"{rq1.self_report_rate_wtd:.0%}")
-c2.metric("Validated turnout", f"{rq1.validated_rate_wtd:.0%}",
-          f"{(rq1.validated_rate_wtd - rq1.self_report_rate_wtd) * 100:.1f} pts",
+c1.metric("Self-reported turnout", f"{rq1.self_report_rate:.0%}")
+c2.metric("Validated turnout", f"{rq1.validated_rate:.0%}",
+          f"{(rq1.validated_rate - rq1.self_report_rate) * 100:.1f} pts",
           delta_color="off")
 c3.metric("Best method", best.label)
 c4.metric("Best state-level RMSE", f"{best.rmse * 100:.1f} pts")

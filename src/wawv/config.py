@@ -33,10 +33,16 @@ CES_COLS = [
     "cc24_401",   # post-election self-reported turnout
     "cc24_410",   # post-election presidential vote choice
     "ts_g2024",   # TargetSmart validated 2024 general-election vote
+    "presvote20post",  # recalled 2020 presidential vote (1 Biden, 2 Trump, 3-5 other, 6 didn't vote)
 ]
 SELF_VOTED_CODE = 5     # cc24_401: "I definitely voted"
 DEM_CODE = 1            # cc24_410 code for the Democratic candidate
 REP_CODE = 2            # cc24_410 code for the Republican candidate
+# Recalled 2020 vote (presvote20post). Confirm codes with check_ces.py.
+PV_DEM_CODE = 1                 # Joe Biden
+PV_REP_CODE = 2                 # Donald Trump
+PV_OTHER_CODES = (3, 4, 5)      # minor-party candidates / "someone else"
+PV_NOVOTE_CODES = (6,)          # "did not vote for president"
 
 # ---- Modeling ---------------------------------------------------------------
 PS_VARS = ["state_fips", "age_grp", "sex", "race", "educ"]  # shared with ACS frame

@@ -42,8 +42,8 @@ def main() -> None:
     pop = people(80_000)
     pop["CIT"] = np.where(rng.random(len(pop)) < 0.07, 5, 1)
     pop["PWGTP"] = rng.integers(20, 200, len(pop))
-    pop[["ST", "AGEP", "SEX", "RAC1P", "HISP", "SCHL", "CIT", "PWGTP"]].to_csv(
-        OUT / "pums" / "psam_pusa.csv", index=False)
+    pop[["ST", "AGEP", "SEX", "RAC1P", "HISP", "SCHL", "CIT", "PWGTP"]].rename(
+        columns={"ST": "STATE"}).to_csv(OUT / "pums" / "psam_pusa.csv", index=False)
 
     # ---- "MIT Election Lab" truth (from the population model) ------------
     p = pop[pop.CIT != 5]
@@ -56,24 +56,33 @@ def main() -> None:
             w = p.PWGTP[m]
             d = (w * dem[m]).sum() * np.exp(shift)
             r = (w * ~dem[m]).sum()
+            o = 0.02 * (d + r)   # minor candidates
             rows += [dict(year=yr, state_fips=st, party_simplified="DEMOCRAT",
-                          candidatevotes=int(d), totalvotes=int(d + r)),
+                          candidatevotes=int(d), totalvotes=int(d + r + o)),
                      dict(year=yr, state_fips=st, party_simplified="REPUBLICAN",
-                          candidatevotes=int(r), totalvotes=int(d + r))]
+                          candidatevotes=int(r), totalvotes=int(d + r + o)),
+                     dict(year=yr, state_fips=st, party_simplified="OTHER",
+                          candidatevotes=int(o), totalvotes=int(d + r + o))]
     pd.DataFrame(rows).to_csv(OUT / "1976-2024-president.csv", index=False)
 
     # ---- "CES" -------------------------------------------------------------
-    # Over-educated, politically interested sample, like a real opt-in panel.
-    s = people(30_000)
-    keep = rng.random(len(s)) < inv(-0.5 + 0.4 * s.ed)
+    # Opt-in panel: over-educated AND over-Democratic *within* demographic groups
+    # (partisan non-response), the bias that demographic weighting can't fix.
+    s = people(40_000)
+    s["dem"] = rng.random(len(s)) < inv(s.dem_lp)
+    keep = rng.random(len(s)) < inv(-0.9 + 0.4 * s.ed + 0.7 * s.dem)
     s = s[keep].sample(8_000, random_state=config.SEED).reset_index(drop=True)
     n = len(s)
+    dem = s.dem.to_numpy()
     newsint = rng.integers(1, 5, n)
     validated = rng.random(n) < inv(s.turn_lp + 0.3 * (4 - newsint))
     overreport = (~validated) & (rng.random(n) < inv(-1 + 0.3 * s.ed + 0.4 * (4 - newsint)))
     self_voted = validated | overreport
-    dem = rng.random(n) < inv(s.dem_lp)
-    race = np.select([s.HISP == 2, s.RAC1P == 1, s.RAC1P == 2, s.RAC1P == 6], [3, 1, 2, 4], 8)
+    # recalled 2020 vote: same partisanship, ~6% switch; 2020 turnout tracks 2024
+    voted20 = rng.random(n) < inv(s.turn_lp + 0.2)
+    dem20 = np.where(rng.random(n) < 0.06, ~dem, dem)
+    pv20 = np.where(~voted20, 6, np.where(rng.random(n) < 0.02, 3, np.where(dem20, 1, 2)))
+    race = np.select([s.HISP == 2, s.RAC1P == 1, s.RAC1P == 2, s.RAC1P == 6], [3, 1, 2, 4], 7)
     ces = pd.DataFrame({
         "caseid": np.arange(n),
         "inputstate": s.ST,
@@ -88,7 +97,9 @@ def main() -> None:
         "commonpostweight": rng.lognormal(0, 0.5, n),
         "cc24_401": np.where(self_voted, 5, 1),
         "cc24_410": np.where(self_voted, np.where(dem, 1, 2), np.nan),
-        "ts_g2024": np.where(validated, 3, np.nan),
+        "ts_g2024": np.where(validated, rng.integers(1, 7, n),
+                             np.where(rng.random(n) < 0.3, 7, np.nan)),
+        "presvote20post": pv20,
     }).astype(float)
     pyreadstat.write_dta(ces, str(OUT / "CES24_Common.dta"))
     print(f"Synthetic raw data written to {OUT}")

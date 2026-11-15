@@ -4,9 +4,12 @@ Colors are role-based: SERIES for categorical identity (fixed order, validated
 for color-vision deficiency), a blue<->red diverging pair with a gray midpoint
 for signed error, and recessive ink/grid colors for chrome.
 """
+import sys
+
 import matplotlib
 
-matplotlib.use("Agg")
+if "ipykernel" not in sys.modules:  # scripts/CI: file-only; notebooks: inline display
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 

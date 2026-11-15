@@ -7,7 +7,7 @@ CREATE SCHEMA IF NOT EXISTS mart;
 -- ACS PUMS person files (5-year). Keep only the columns we need.
 CREATE OR REPLACE TABLE raw.acs_pums_person AS
 SELECT
-    CAST(ST    AS INTEGER) AS st,
+    CAST(STATE AS INTEGER) AS st,
     CAST(AGEP  AS INTEGER) AS agep,
     CAST(SEX   AS INTEGER) AS sex,
     CAST(RAC1P AS INTEGER) AS rac1p,

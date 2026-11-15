@@ -45,9 +45,14 @@ def rq2_who_overreports(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    df = query("SELECT * FROM clean.ces")
+    df = query("SELECT * FROM clean.ces WHERE self_voted IS NOT NULL")
+    # Spec 1 (CES guide): unmatched respondents count as non-voters -> upper bound
     rq1_mcnemar(df).to_csv(config.TAB_DIR / "rq1_overreport_mcnemar.csv", index=False)
     rq2_who_overreports(df).to_csv(config.TAB_DIR / "rq2_overreport_ame.csv", index=False)
+    # Spec 2: matched respondents only -> lower bound, robust to matching failure
+    m = df[df.matched == 1]
+    rq1_mcnemar(m).to_csv(config.TAB_DIR / "rq1_overreport_mcnemar_matched.csv", index=False)
+    rq2_who_overreports(m).to_csv(config.TAB_DIR / "rq2_overreport_ame_matched.csv", index=False)
     print(f"Tables written to {config.TAB_DIR}")
 
 

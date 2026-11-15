@@ -16,16 +16,15 @@ result in every state**.
 ## Key results
 
 <!-- RESULTS:START -->
-> ⚠️ Shown from the **synthetic demo run**. Run `make all` on the real data to replace with actual findings.
+- **Turnout is overstated by 3.0 to 22.4 points.** 93% of respondents (unweighted) say they voted, versus 71% with a validated vote when unmatched respondents count as non-voters; restricting to respondents matched to the voter file narrows the gap to 3.0 points. Both are significant (McNemar p < .001).
+- **Overreporting is patterned, not random.** The largest effect is Party ID (7-pt): not sure  (vs strong Democrat): -30.9 pts in the probability of claiming a vote, among respondents confirmed in the voter file as non-voters.
+- **Gradient boosting predicts turnout better than logistic regression** with demographics alone (AUC 0.788 vs 0.784; 95% CI for the difference [+0.003, +0.006]).
+- **Demographic adjustment cannot fix partisan non-response; recalled 2020 vote largely can.** Without 2020 vote, estimates overstate the Democratic share by 7.6–8.6 points on average across states; adding it cuts this to 2.4–3.4 points (average bias 63% lower).
+- **raked_pv recovers state results best**: RMSE 3.7 pts vs 9.2 for MRP + likely voter. Its RMSE is lower than every alternative (all bootstrap CIs exclude zero).
 
-- **Turnout is overstated by 13.0 points.** 87% of respondents (weighted) say they voted; 74% have a voter-file record (McNemar χ² = 1,033, p < .001).
-- **Overreporting is patterned, not random.** The largest effect is News interest: hardly at all  (vs most of the time): -30.4 pts in the probability of claiming a vote, among validated non-voters.
-- **Gradient boosting doesn't beat logistic regression on turnout** with demographics alone (AUC 0.686 vs 0.698; 95% CI for the difference [-0.024, +0.000]).
-- **MRP + likely voter recovers state results best**: RMSE 1.1 pts vs 4.6 for CES weight. It beats every alternative in paired tests across states (largest Wilcoxon p < .001).
+<p align="center"><img src="reports/figures/fig4_method_errors.png" width="49%"> <img src="reports/figures/fig5_error_tilemap.png" width="49%"></p>
 
-<p align="center"><img src="reports/demo/figures/fig4_method_errors.png" width="49%"> <img src="reports/demo/figures/fig5_error_tilemap.png" width="49%"></p>
-
-Full write-up: [`reports/demo/REPORT.md`](reports/demo/REPORT.md)
+Full write-up: [`reports/REPORT.md`](reports/REPORT.md)
 <!-- RESULTS:END -->
 
 ---

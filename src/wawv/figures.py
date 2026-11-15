@@ -41,7 +41,7 @@ def _best_method() -> str:
 # ---------------------------------------------------------------------------
 def fig1_turnout_gap():
     r = pd.read_csv(T / "rq1_overreport_mcnemar.csv").iloc[0]
-    vals = [r.validated_rate_wtd, r.self_report_rate_wtd]
+    vals = [r.validated_rate, r.self_report_rate]
     labels = ["Validated in voter file", "Self-reported"]
     fig, ax = plt.subplots(figsize=(6.4, 2.4))
     ax.barh(labels, vals, color=[CONTEXT, HIGHLIGHT], height=0.55)
@@ -51,10 +51,10 @@ def fig1_turnout_gap():
     ax.set_xlim(0, 1)
     ax.xaxis.set_major_formatter(lambda x, _: f"{x:.0%}")
     ax.grid(axis="y", visible=False)
-    gap = (r.self_report_rate_wtd - r.validated_rate_wtd) * 100
+    gap = (r.self_report_rate - r.validated_rate) * 100
     p = "p < .001" if r.p_value < 0.001 else f"p = {r.p_value:.3f}"
     ax.set_title("Respondents overstate turnout", pad=22)
-    subtitle(ax, f"Weighted turnout, CES 2024. Gap = {gap:.1f} pts "
+    subtitle(ax, f"Unweighted turnout, CES 2024. Gap = {gap:.1f} pts "
                  f"(McNemar χ² = {r.mcnemar_chi2:,.0f}, {p}).")
     source_note(fig, SRC)
     fig.subplots_adjust(bottom=0.22)
@@ -75,13 +75,18 @@ def _clean_term(t: str) -> str:
     if var == "newsint":  # CES: 1 = most of the time ... 4 = hardly at all
         lvl = {"2": "some of the time", "3": "only now and then",
                "4": "hardly at all", "7": "don't know"}.get(lvl, lvl)
-    ref = ref or {"age_grp": "18-29", "newsint": "most of the time"}.get(var, "")
+    if var == "pid7":  # CES 7-point party ID; reference = 1 (strong Democrat)
+        lvl = {"2": "not very strong Democrat", "3": "lean Democrat", "4": "independent",
+               "5": "lean Republican", "6": "not very strong Republican",
+               "7": "strong Republican", "8": "not sure", "9": "don't know"}.get(lvl, lvl)
+    ref = ref or {"age_grp": "18-29", "newsint": "most of the time",
+                  "pid7": "strong Democrat"}.get(var, "")
     lvl, ref = pretty.get(lvl, lvl), pretty.get(ref, ref)
     return f"{names.get(var, var)}: {lvl}" + (f"  (vs {ref})" if ref else "")
 
 
 def fig2_overreport_ame():
-    a = pd.read_csv(T / "rq2_overreport_ame.csv")
+    a = pd.read_csv(T / "rq2_overreport_ame_matched.csv")
     a = a[a.term.str.contains("educ|age_grp|race|newsint")].copy()
     a["label"] = a.term.map(_clean_term)
     a = a.iloc[::-1]
@@ -96,8 +101,8 @@ def fig2_overreport_ame():
     ax.grid(axis="y", visible=False)
     ax.set_xlabel("Change in probability of claiming to have voted (pct. points)")
     ax.set_title("Who overreports?", pad=22)
-    subtitle(ax, "Average marginal effects with 95% CIs, among respondents "
-                 "with no validated vote.")
+    subtitle(ax, "Average marginal effects with 95% CIs, among among respondents matched to the voter file with no " \
+    "2024 vote.")
     source_note(fig, SRC)
     fig.subplots_adjust(bottom=0.12)
     save(fig, F / "fig2_overreport_ame.png")
